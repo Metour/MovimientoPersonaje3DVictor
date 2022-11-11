@@ -14,6 +14,7 @@ public class ThirdPersonController : MonoBehaviour
     public float speed = 5;
     public float jumpHeight = 1;
     public float gravity = -9.81f;
+    [SerializeField] private float pushStrength = 4f;
 
     //variables para el ground sensor
     [Header("Sensor Suelo")]
@@ -34,6 +35,11 @@ public class ThirdPersonController : MonoBehaviour
     public GameObject[] cameras;
 
     public LayerMask rayLayer;
+
+    //Variables para coger objetos
+    public GameObject objectToPick;
+    [SerializeField] private GameObject pickedObject;
+    [SerializeField] Transform interactionZone;
     
     // Start is called before the first frame update
     void Start()
@@ -43,7 +49,7 @@ public class ThirdPersonController : MonoBehaviour
         anim = GetComponentInChildren<Animator>();
 
         //Con esto podemos esconder el icono del raton para que no moleste
-        //Cursor.lockState = CursorLockMode.Locked;
+        Cursor.lockState = CursorLockMode.Locked;
     }
 
     // Update is called once per frame
@@ -56,6 +62,7 @@ public class ThirdPersonController : MonoBehaviour
         
         //Lamamaos la funcion de salto
         Jump();
+        PickObjects();
         
         RaycastHit hit;
         if(Physics.Raycast(transform.position, transform.forward, out hit, 20f, rayLayer))
@@ -92,6 +99,7 @@ public class ThirdPersonController : MonoBehaviour
         }
     }
 
+    #region FuncionesDeMovimiento
     void Movement()
     {
         //Creamos un Vector3 y en los ejes X y Z le asignamos los inputs de movimiento
@@ -193,7 +201,9 @@ public class ThirdPersonController : MonoBehaviour
             controller.Move(moveDirection.normalized * speed * Time.deltaTime);
         }
     }
+    #endregion
 
+    #region FuncionDeSalto
     //Funcion de salto y gravedad
     void Jump()
     {
@@ -250,5 +260,51 @@ public class ThirdPersonController : MonoBehaviour
         Gizmos.color = Color.blue;
         //Esto dibuja una esfera
         Gizmos.DrawWireSphere(groundSensor.position, sensorRadius);
+    }
+    #endregion
+
+    #region FuncionAgarrarObjetos
+    void PickObjects()
+    {
+        if(Input.GetKeyDown(KeyCode.E))
+        {
+            if(objectToPick != null && pickedObject == null && objectToPick.gameObject.GetComponent<AgarrarObjetos>().isPickable == true)
+            {
+                pickedObject = objectToPick;
+                pickedObject.GetComponent<AgarrarObjetos>().isPickable = false;
+                pickedObject.transform.SetParent(interactionZone);
+                pickedObject.transform.position = interactionZone.position;
+                pickedObject.GetComponent<Rigidbody>().useGravity = false;
+                pickedObject.GetComponent<Rigidbody>().isKinematic = true;
+            }
+
+            else if(pickedObject != null)
+            {
+                pickedObject.GetComponent<AgarrarObjetos>().isPickable = true;
+                pickedObject.transform.SetParent(null);
+                pickedObject.GetComponent<Rigidbody>().useGravity = true;
+                pickedObject.GetComponent<Rigidbody>().isKinematic = false;
+                pickedObject = null;
+            }
+        }
+    }
+    #endregion
+
+    private void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        if(hit.gameObject.tag == "Empujable")
+        {
+            Rigidbody body = hit.collider.attachedRigidbody;
+
+            if(body == null || body.isKinematic)
+            {
+                return;
+            }
+
+            Vector3 pushDir = new Vector3(hit.moveDirection.x, 0f, hit.moveDirection.z);
+
+            //Cuanta mas masa tenga el objeto mas lento se movera el objeto
+            body.velocity = pushDir * pushStrength / body.mass;
+        }
     }
 }
